@@ -1,34 +1,38 @@
-import os
+# pyright: reportMissingImports=false
 import asyncio
+import os
+import sys
 from dataclasses import dataclass
-from typing import List, Optional
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Third-party imports
-import gradio as gr
-from dotenv import load_dotenv
-from langchain_openai import ChatOpenAI
+import gradio as gr  # type: ignore
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 
 # Local module imports
 from browser_use import Agent
-
-load_dotenv()
+from browser_use.llm import ChatOpenAI
 
 
 @dataclass
 class ActionResult:
 	is_done: bool
-	extracted_content: Optional[str]
-	error: Optional[str]
+	extracted_content: str | None
+	error: str | None
 	include_in_memory: bool
 
 
 @dataclass
 class AgentHistoryList:
-	all_results: List[ActionResult]
-	all_model_outputs: List[dict]
+	all_results: list[ActionResult]
+	all_model_outputs: list[dict]
 
 
 def parse_agent_history(history_str: str) -> None:
@@ -49,6 +53,8 @@ def parse_agent_history(history_str: str) -> None:
 			console.print(panel)
 			console.print()
 
+	return None
+
 
 async def run_browser_task(
 	task: str,
@@ -67,8 +73,8 @@ async def run_browser_task(
 			llm=ChatOpenAI(model='gpt-4o'),
 		)
 		result = await agent.run()
-		#  TODO: The result cloud be parsed better
-		return result
+		#  TODO: The result could be parsed better
+		return str(result)
 	except Exception as e:
 		return f'Error: {str(e)}'
 
@@ -85,9 +91,7 @@ def create_ui():
 					placeholder='E.g., Find flights from New York to London for next week',
 					lines=3,
 				)
-				model = gr.Dropdown(
-					choices=['gpt-4', 'gpt-3.5-turbo'], label='Model', value='gpt-4'
-				)
+				model = gr.Dropdown(choices=['gpt-4', 'gpt-3.5-turbo'], label='Model', value='gpt-4')
 				headless = gr.Checkbox(label='Run Headless', value=True)
 				submit_btn = gr.Button('Run Task')
 
