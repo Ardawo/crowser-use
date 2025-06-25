@@ -3,9 +3,10 @@ import logging
 import os
 import signal
 import time
+from collections.abc import Callable, Coroutine
 from functools import wraps
 from sys import stderr
-from typing import Any, Callable, Coroutine, List, Optional, ParamSpec, TypeVar
+from typing import Any, ParamSpec, TypeVar
 
 logger = logging.getLogger(__name__)
 
@@ -18,8 +19,7 @@ P = ParamSpec('P')
 
 
 class SignalHandler:
-	"""
-	A modular and reusable signal handling system for managing SIGINT (Ctrl+C), SIGTERM,
+	"""A modular and reusable signal handling system for managing SIGINT (Ctrl+C), SIGTERM,
 	and other signals in asyncio applications.
 
 	This class provides:
@@ -31,15 +31,14 @@ class SignalHandler:
 
 	def __init__(
 		self,
-		loop: Optional[asyncio.AbstractEventLoop] = None,
-		pause_callback: Optional[Callable[[], None]] = None,
-		resume_callback: Optional[Callable[[], None]] = None,
-		custom_exit_callback: Optional[Callable[[], None]] = None,
+		loop: asyncio.AbstractEventLoop | None = None,
+		pause_callback: Callable[[], None] | None = None,
+		resume_callback: Callable[[], None] | None = None,
+		custom_exit_callback: Callable[[], None] | None = None,
 		exit_on_second_int: bool = True,
-		interruptible_task_patterns: List[str] = None,
+		interruptible_task_patterns: list[str] = None,
 	):
-		"""
-		Initialize the signal handler.
+		"""Initialize the signal handler.
 
 		Args:
 			loop: The asyncio event loop to use. Defaults to current event loop.
@@ -49,6 +48,7 @@ class SignalHandler:
 			exit_on_second_int: Whether to exit on second SIGINT (Ctrl+C)
 			interruptible_task_patterns: List of patterns to match task names that should be
 										 canceled on first Ctrl+C (default: ['step', 'multi_act', 'get_next_action'])
+
 		"""
 		self.loop = loop or asyncio.get_event_loop()
 		self.pause_callback = pause_callback
@@ -66,8 +66,8 @@ class SignalHandler:
 
 	def _initialize_loop_state(self) -> None:
 		"""Initialize loop state attributes used for signal handling."""
-		setattr(self.loop, 'ctrl_c_pressed', False)
-		setattr(self.loop, 'waiting_for_input', False)
+		self.loop.ctrl_c_pressed = False
+		self.loop.waiting_for_input = False
 
 	def register(self) -> None:
 		"""Register signal handlers for SIGINT and SIGTERM."""
@@ -90,8 +90,7 @@ class SignalHandler:
 			logger.warning(f'Error while unregistering signal handlers: {e}')
 
 	def _handle_second_ctrl_c(self) -> None:
-		"""
-		Handle a second Ctrl+C press by performing cleanup and exiting.
+		"""Handle a second Ctrl+C press by performing cleanup and exiting.
 		This is shared logic used by both sigint_handler and wait_for_resume.
 		"""
 		global _exiting
@@ -111,8 +110,7 @@ class SignalHandler:
 		os._exit(0)
 
 	def sigint_handler(self) -> None:
-		"""
-		SIGINT (Ctrl+C) handler.
+		"""SIGINT (Ctrl+C) handler.
 
 		First Ctrl+C: Cancel current step and pause.
 		Second Ctrl+C: Exit immediately if exit_on_second_int is True.
@@ -149,8 +147,7 @@ class SignalHandler:
 		print('----------------------------------------------------------------------', file=stderr)
 
 	def sigterm_handler(self) -> None:
-		"""
-		SIGTERM handler.
+		"""SIGTERM handler.
 
 		Always exits the program completely.
 		"""
@@ -186,15 +183,14 @@ class SignalHandler:
 				current_task.cancel()
 
 	def wait_for_resume(self) -> None:
-		"""
-		Wait for user input to resume or exit.
+		"""Wait for user input to resume or exit.
 
 		This method should be called after handling the first Ctrl+C.
 		It temporarily restores default signal handling to allow catching
 		a second Ctrl+C directly.
 		"""
 		# Set flag to indicate we're waiting for input
-		setattr(self.loop, 'waiting_for_input', True)
+		self.loop.waiting_for_input = True
 
 		# Temporarily restore default signal handling for SIGINT
 		# This ensures KeyboardInterrupt will be raised during input()
@@ -226,7 +222,7 @@ class SignalHandler:
 			try:
 				# Restore our signal handler
 				signal.signal(signal.SIGINT, original_handler)
-				setattr(self.loop, 'waiting_for_input', False)
+				self.loop.waiting_for_input = False
 			except Exception:
 				pass
 
@@ -284,4 +280,4 @@ def singleton(cls):
 
 def check_env_variables(keys: list[str], any_or_all=all) -> bool:
 	"""Check if all required environment variables are set"""
-	return any_or_all(os.getenv(key).strip() for key in keys)
+	return any_or_all(os.getenv(key) for key in keys)
